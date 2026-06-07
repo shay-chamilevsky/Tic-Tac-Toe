@@ -124,8 +124,13 @@ async function handleApi(req, res, pathname) {
         return;
       }
 
-      if (mode !== "classic" && mode !== "burningEarth") {
-        sendJson(res, 400, { error: 'Mode must be "classic" or "burningEarth"' });
+      if (
+        mode !== "classic" &&
+        mode !== "burningEarth" &&
+        mode !== "infinite" &&
+        mode !== "burningEarth_infinite"
+      ) {
+        sendJson(res, 400, { error: "Invalid game mode" });
         return;
       }
 

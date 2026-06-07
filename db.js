@@ -4,7 +4,7 @@ const path = require("path");
 const dataDir = path.join(__dirname, "data");
 const dbPath = path.join(dataDir, "users.json");
 
-const VALID_MODES = ["classic", "burningEarth"];
+const VALID_MODES = ["classic", "burningEarth", "infinite", "burningEarth_infinite"];
 const COMPUTER = "COMPUTER";
 
 function ensureDataFile() {
@@ -21,22 +21,17 @@ function emptyStats() {
 }
 
 function normalizeUser(user) {
-  if (user.classic && user.burningEarth) {
-    return {
-      name: user.name,
-      classic: { ...emptyStats(), ...user.classic },
-      burningEarth: { ...emptyStats(), ...user.burningEarth },
-    };
-  }
-
+  const classicStats = user.classic || {
+    wins: user.wins ?? 0,
+    losses: user.losses ?? 0,
+    draws: user.draws ?? 0,
+  };
   return {
     name: user.name,
-    classic: {
-      wins: user.wins ?? 0,
-      losses: user.losses ?? 0,
-      draws: user.draws ?? 0,
-    },
-    burningEarth: emptyStats(),
+    classic: { ...emptyStats(), ...classicStats },
+    burningEarth: { ...emptyStats(), ...user.burningEarth },
+    infinite: { ...emptyStats(), ...user.infinite },
+    burningEarth_infinite: { ...emptyStats(), ...user.burningEarth_infinite },
   };
 }
 
@@ -45,7 +40,13 @@ function readUsers() {
   try {
     const raw = JSON.parse(fs.readFileSync(dbPath, "utf8"));
     const users = raw.map(normalizeUser);
-    const needsMigration = raw.some((u) => !u.classic || !u.burningEarth);
+    const needsMigration = raw.some(
+      (u) =>
+        !u.classic ||
+        !u.burningEarth ||
+        !u.infinite ||
+        !u.burningEarth_infinite
+    );
     if (needsMigration) {
       writeUsers(users);
     }
@@ -89,6 +90,8 @@ function createUser(name) {
     name: trimmed,
     classic: emptyStats(),
     burningEarth: emptyStats(),
+    infinite: emptyStats(),
+    burningEarth_infinite: emptyStats(),
   };
   users.push(user);
   writeUsers(users);
@@ -107,7 +110,7 @@ function deleteUser(name) {
 
 function updateStats(p1, p2, winner, mode = "classic") {
   if (!VALID_MODES.includes(mode)) {
-    throw new Error('Mode must be "classic" or "burningEarth"');
+    throw new Error("Invalid game mode");
   }
 
   if (p1 === COMPUTER || p2 === COMPUTER) {

@@ -2,6 +2,7 @@ const STORAGE_KEYS = {
   theme: "ttt_theme",
   tieBreaker: "ttt_tie_breaker",
   burningEarth: "ttt_burning_earth",
+  infinite: "ttt_infinite",
 };
 
 const API = "/api";
@@ -27,6 +28,7 @@ const state = {
   replaying: false,
   coinFlipActive: false,
   moves: [],
+  burningIndices: [],
   lastGameMoves: [],
   lastCoinFlip: null,
   winningLine: null,
@@ -37,10 +39,11 @@ const state = {
   sessionPair: null,
   matchNumber: 0,
   sessionScores: { p1Wins: 0, p2Wins: 0, draws: 0 },
-  burningIndex: null,
   lastGameMode: "classic",
-  lastInitialBurning: null,
+  lastInitialBurnings: [],
   computerThinking: false,
+  playerXMoves: [],
+  playerOMoves: [],
 };
 
 const els = {
@@ -67,8 +70,13 @@ const els = {
   coinFlipBtn: document.getElementById("coinFlipBtn"),
   tieBreakerToggle: document.getElementById("tieBreakerToggle"),
   burningEarthToggle: document.getElementById("burningEarthToggle"),
+  infiniteToggle: document.getElementById("infiniteToggle"),
   player1Difficulty: document.getElementById("player1Difficulty"),
   player2Difficulty: document.getElementById("player2Difficulty"),
+  toggleUsersBtn: document.getElementById("toggleUsersBtn"),
+  closeUsersBtn: document.getElementById("closeUsersBtn"),
+  usersPanel: document.getElementById("usersPanel"),
+  drawerBackdrop: document.getElementById("drawerBackdrop"),
 };
 
 async function apiRequest(url, options = {}) {
@@ -142,12 +150,26 @@ function isBurningEarthMode() {
   return els.burningEarthToggle?.checked ?? false;
 }
 
+function isInfiniteMode() {
+  return els.infiniteToggle?.checked ?? false;
+}
+
 function getActiveMode() {
-  return isBurningEarthMode() ? "burningEarth" : "classic";
+  const isBE = isBurningEarthMode();
+  const isInf = isInfiniteMode();
+  if (isBE && isInf) return "burningEarth_infinite";
+  if (isBE) return "burningEarth";
+  if (isInf) return "infinite";
+  return "classic";
 }
 
 function getModeLabel() {
-  return isBurningEarthMode() ? "Burning Earth 🔥" : "Classic";
+  const isBE = isBurningEarthMode();
+  const isInf = isInfiniteMode();
+  if (isBE && isInf) return "Burning Earth + Infinite 🔥♾️";
+  if (isBE) return "Burning Earth 🔥";
+  if (isInf) return "Infinite Mode ♾️";
+  return "Classic";
 }
 
 function loadBurningEarthSetting() {
@@ -163,9 +185,22 @@ function saveBurningEarthSetting() {
   );
 }
 
+function loadInfiniteSetting() {
+  const stored = localStorage.getItem(STORAGE_KEYS.infinite);
+  if (stored === null) return;
+  els.infiniteToggle.checked = stored === "true";
+}
+
+function saveInfiniteSetting() {
+  localStorage.setItem(
+    STORAGE_KEYS.infinite,
+    String(isInfiniteMode()),
+  );
+}
+
 function getUserStats(user) {
   const mode = getActiveMode();
-  if (user.classic && user.burningEarth) {
+  if (user[mode]) {
     return user[mode];
   }
   return {
@@ -179,6 +214,7 @@ function updateModeToggles() {
   const busy = state.gameActive || state.replaying || state.coinFlipActive;
   els.tieBreakerToggle.disabled = busy;
   els.burningEarthToggle.disabled = busy;
+  els.infiniteToggle.disabled = busy;
 }
 
 function findUser(name) {
@@ -470,8 +506,9 @@ function renderBoard() {
       btn.classList.add("disabled");
     }
 
-    if (state.burningIndex === index) {
+    if (state.burningIndices.includes(index)) {
       btn.classList.add("burning");
+      btn.classList.add("disabled");
     }
 
     if (state.winningLine && state.winningLine.includes(index)) {
@@ -514,7 +551,9 @@ function resetBoard(keepPlayers = true) {
   state.winningLine = null;
   state.gameActive = false;
   state.replaying = false;
-  state.burningIndex = null;
+  state.burningIndices = [];
+  state.playerXMoves = [];
+  state.playerOMoves = [];
 
   if (!keepPlayers) {
     state.lastGameMoves = [];
@@ -553,11 +592,11 @@ function beginNextRound(continueSeries) {
 
   state.lastGameMode = getActiveMode();
   if (isBurningEarthMode()) {
-    state.burningIndex = pickInitialBurningIndex();
-    state.lastInitialBurning = state.burningIndex;
+    state.burningIndices = pickInitialBurningIndices();
+    state.lastInitialBurnings = [...state.burningIndices];
   } else {
-    state.burningIndex = null;
-    state.lastInitialBurning = null;
+    state.burningIndices = [];
+    state.lastInitialBurnings = [];
   }
 
   beginRound();
@@ -568,57 +607,64 @@ function beginNextRound(continueSeries) {
   scheduleComputerTurn();
 }
 
+function openDrawer() {
+  els.usersPanel.classList.add("open");
+  els.drawerBackdrop.classList.add("show");
+  document.body.style.overflow = "hidden";
+}
+
+function closeDrawer() {
+  els.usersPanel.classList.remove("open");
+  els.drawerBackdrop.classList.remove("show");
+  document.body.style.overflow = "";
+}
+
 function startGame() {
+  closeDrawer();
   beginNextRound(shouldContinueSeries());
 }
 
-function pickInitialBurningIndex() {
-  return Math.floor(Math.random() * 9);
+function pickInitialBurningIndices() {
+  const indices = Array.from({ length: 9 }, (_, i) => i);
+  return shuffleArray(indices).slice(0, 3);
 }
 
-function moveBurningCell(excludeIndex) {
-  const emptyCells = [];
+function shuffleArray(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function moveBurningCells(excludeIndex) {
+  const pool = [];
   for (let i = 0; i < 9; i++) {
-    if (!state.board[i] && i !== state.burningIndex && i !== excludeIndex) {
-      emptyCells.push(i);
+    if (i !== excludeIndex) {
+      pool.push(i);
     }
   }
-
-  if (emptyCells.length > 0) {
-    state.burningIndex =
-      emptyCells[Math.floor(Math.random() * emptyCells.length)];
-    return;
-  }
-
-  const others = [];
-  for (let i = 0; i < 9; i++) {
-    if (i !== state.burningIndex) others.push(i);
-  }
-  state.burningIndex = others[Math.floor(Math.random() * others.length)];
+  state.burningIndices = shuffleArray(pool).slice(0, 3);
 }
 
-function isBoardFull(board, burningIndex) {
-  if (burningIndex === null || burningIndex === undefined) {
-    return board.every(Boolean);
-  }
-  return board.every((cell, i) => i === burningIndex || cell);
+function isBoardFull(board) {
+  return board.every((cell) => cell !== null);
 }
 
-function checkWinner(board, burningIndex = null) {
+function checkWinner(board, burningIndices = null) {
+  const burningSet = new Set(
+    Array.isArray(burningIndices) ? burningIndices : []
+  );
   for (const line of WIN_LINES) {
-    if (
-      burningIndex !== null &&
-      burningIndex !== undefined &&
-      line.includes(burningIndex)
-    ) {
-      continue;
-    }
+    // Skip any line that touches a burning cell
+    if (line.some((idx) => burningSet.has(idx))) continue;
     const [a, b, c] = line;
     if (board[a] && board[a] === board[b] && board[a] === board[c]) {
       return { winner: board[a], line };
     }
   }
-  if (isBoardFull(board, burningIndex)) {
+  if (isBoardFull(board, burningIndices)) {
     return { winner: null, line: null, draw: true };
   }
   return null;
@@ -628,57 +674,84 @@ function cloneBoard(board) {
   return [...board];
 }
 
-function getValidMoves(board, burningIndex, { excludeBurning = false } = {}) {
+function getValidMoves(board, burningIndices, { excludeBurning = false } = {}) {
+  const burningSet = new Set(
+    Array.isArray(burningIndices) ? burningIndices : []
+  );
   const moves = [];
   for (let i = 0; i < 9; i++) {
     if (board[i]) continue;
-    if (excludeBurning && burningIndex !== null && i === burningIndex) continue;
+    if (excludeBurning && burningSet.has(i)) continue;
     moves.push(i);
   }
   return moves;
 }
 
-function getFireDestinations(board, oldBurning, playedIndex) {
-  const emptyCells = [];
+function getFireDestinationsMulti(board, playedIndex) {
+  // Returns all cells that could become burning (all cells except the just-played cell)
+  const pool = [];
   for (let i = 0; i < 9; i++) {
-    if (!board[i] && i !== oldBurning && i !== playedIndex) {
-      emptyCells.push(i);
+    if (i !== playedIndex) {
+      pool.push(i);
     }
   }
-  if (emptyCells.length > 0) return emptyCells;
-
-  const others = [];
-  for (let i = 0; i < 9; i++) {
-    if (i !== oldBurning) others.push(i);
-  }
-  return others;
+  return pool;
 }
 
-function simulateMove(board, burningIndex, player, index, isBurningEarth) {
+function sampleBurningIndices(candidates) {
+  // Pick exactly 3 (or as many as available) from the candidate list
+  return shuffleArray(candidates).slice(0, 3);
+}
+
+function simulateMove(board, burningIndices, player, index, isBurningEarth, movesX = [], movesO = [], isInfinite = false) {
   const newBoard = cloneBoard(board);
   newBoard[index] = player;
 
-  if (!isBurningEarth) {
-    return [{ board: newBoard, burningIndex: null }];
+  const nextMovesX = [...movesX];
+  const nextMovesO = [...movesO];
+  if (isInfinite) {
+    const arr = player === "X" ? nextMovesX : nextMovesO;
+    arr.push(index);
+    if (arr.length >= 4) {
+      const oldest = arr.shift();
+      newBoard[oldest] = null;
+    }
   }
 
-  return getFireDestinations(newBoard, burningIndex, index).map((dest) => ({
-    board: newBoard,
-    burningIndex: dest,
-  }));
+  if (!isBurningEarth) {
+    return [{ board: newBoard, burningIndices: null, movesX: nextMovesX, movesO: nextMovesO }];
+  }
+
+  // For AI simulation: generate a representative set of possible next burning
+  // configurations (sample a few rather than enumerating all combinations)
+  const candidates = getFireDestinationsMulti(newBoard, index);
+  const configs = [];
+  const numSamples = Math.min(4, Math.max(1, Math.floor(candidates.length / 2)));
+  for (let s = 0; s < numSamples; s++) {
+    configs.push({
+      board: newBoard,
+      burningIndices: sampleBurningIndices(candidates),
+      movesX: nextMovesX,
+      movesO: nextMovesO,
+    });
+  }
+  return configs;
 }
 
-function findWinningMove(board, burningIndex, player, isBurningEarth) {
-  const moves = getValidMoves(board, burningIndex);
+function findWinningMove(board, burningIndices, player, isBurningEarth, movesX = [], movesO = [], isInfinite = false) {
+  const moves = getValidMoves(board, burningIndices);
   for (const index of moves) {
     const outcomes = simulateMove(
       board,
-      burningIndex,
+      burningIndices,
       player,
       index,
       isBurningEarth,
+      movesX,
+      movesO,
+      isInfinite,
     );
-    for (const { board: simBoard, burningIndex: simBurning } of outcomes) {
+    for (const { board: simBoard, burningIndices: simBurning } of outcomes) {
       const result = checkWinner(
         simBoard,
         isBurningEarth ? simBurning : null,
@@ -689,12 +762,12 @@ function findWinningMove(board, burningIndex, player, isBurningEarth) {
   return null;
 }
 
-function findBlockingMove(board, burningIndex, opponent, isBurningEarth) {
-  return findWinningMove(board, burningIndex, opponent, isBurningEarth);
+function findBlockingMove(board, burningIndices, opponent, isBurningEarth, movesX = [], movesO = [], isInfinite = false) {
+  return findWinningMove(board, burningIndices, opponent, isBurningEarth, movesX, movesO, isInfinite);
 }
 
-function evaluateBoardScore(board, burningIndex, aiSymbol, oppSymbol) {
-  const result = checkWinner(board, burningIndex);
+function evaluateBoardScore(board, burningIndices, aiSymbol, oppSymbol) {
+  const result = checkWinner(board, burningIndices);
   if (!result) return null;
   if (result.winner === aiSymbol) return 10;
   if (result.winner === oppSymbol) return -10;
@@ -702,16 +775,68 @@ function evaluateBoardScore(board, burningIndex, aiSymbol, oppSymbol) {
   return null;
 }
 
-function minimaxClassic(board, isMaximizing, aiSymbol, oppSymbol) {
+function evaluateHeuristic(board, burningIndices, aiSymbol, oppSymbol) {
+  const burningSet = new Set(
+    Array.isArray(burningIndices) ? burningIndices : []
+  );
+  let score = 0;
+
+  for (const line of WIN_LINES) {
+    if (line.some((idx) => burningSet.has(idx))) continue;
+
+    let aiCount = 0;
+    let oppCount = 0;
+    for (const idx of line) {
+      if (board[idx] === aiSymbol) {
+        aiCount++;
+      } else if (board[idx] === oppSymbol) {
+        oppCount++;
+      }
+    }
+
+    if (aiCount > 0 && oppCount === 0) {
+      if (aiCount === 2) {
+        score += 3;
+      } else if (aiCount === 1) {
+        score += 1;
+      }
+    } else if (oppCount > 0 && aiCount === 0) {
+      if (oppCount === 2) {
+        score -= 3;
+      } else if (oppCount === 1) {
+        score -= 1;
+      }
+    }
+  }
+
+  // Clamp heuristic score to [-9, 9] to make sure immediate terminal wins (10) or losses (-10) are always prioritized/avoided.
+  return Math.max(-9, Math.min(9, score));
+}
+
+function minimaxClassic(board, depth, movesX, movesO, isMaximizing, aiSymbol, oppSymbol, isInfinite) {
   const score = evaluateBoardScore(board, null, aiSymbol, oppSymbol);
   if (score !== null) return score;
+
+  if (isInfinite && depth >= 4) {
+    return evaluateHeuristic(board, null, aiSymbol, oppSymbol);
+  }
 
   if (isMaximizing) {
     let best = -Infinity;
     for (const i of getValidMoves(board, null)) {
       const next = cloneBoard(board);
       next[i] = aiSymbol;
-      best = Math.max(best, minimaxClassic(next, false, aiSymbol, oppSymbol));
+      const nextMovesX = [...movesX];
+      const nextMovesO = [...movesO];
+      if (isInfinite) {
+        const arr = aiSymbol === "X" ? nextMovesX : nextMovesO;
+        arr.push(i);
+        if (arr.length >= 4) {
+          const oldest = arr.shift();
+          next[oldest] = null;
+        }
+      }
+      best = Math.max(best, minimaxClassic(next, depth + 1, nextMovesX, nextMovesO, false, aiSymbol, oppSymbol, isInfinite));
     }
     return best;
   }
@@ -720,19 +845,39 @@ function minimaxClassic(board, isMaximizing, aiSymbol, oppSymbol) {
   for (const i of getValidMoves(board, null)) {
     const next = cloneBoard(board);
     next[i] = oppSymbol;
-    best = Math.min(best, minimaxClassic(next, true, aiSymbol, oppSymbol));
+    const nextMovesX = [...movesX];
+    const nextMovesO = [...movesO];
+    if (isInfinite) {
+      const arr = oppSymbol === "X" ? nextMovesX : nextMovesO;
+      arr.push(i);
+      if (arr.length >= 4) {
+        const oldest = arr.shift();
+        next[oldest] = null;
+      }
+    }
+    best = Math.min(best, minimaxClassic(next, depth + 1, nextMovesX, nextMovesO, true, aiSymbol, oppSymbol, isInfinite));
   }
   return best;
 }
 
-function getBestMinimaxMoveClassic(board, aiSymbol, oppSymbol) {
+function getBestMinimaxMoveClassic(board, movesX, movesO, aiSymbol, oppSymbol, isInfinite) {
   let bestScore = -Infinity;
   let bestMove = null;
 
   for (const i of getValidMoves(board, null)) {
     const next = cloneBoard(board);
     next[i] = aiSymbol;
-    const score = minimaxClassic(next, false, aiSymbol, oppSymbol);
+    const nextMovesX = [...movesX];
+    const nextMovesO = [...movesO];
+    if (isInfinite) {
+      const arr = aiSymbol === "X" ? nextMovesX : nextMovesO;
+      arr.push(i);
+      if (arr.length >= 4) {
+        const oldest = arr.shift();
+        next[oldest] = null;
+      }
+    }
+    const score = minimaxClassic(next, 1, nextMovesX, nextMovesO, false, aiSymbol, oppSymbol, isInfinite);
     if (score > bestScore) {
       bestScore = score;
       bestMove = i;
@@ -742,22 +887,30 @@ function getBestMinimaxMoveClassic(board, aiSymbol, oppSymbol) {
   return bestMove;
 }
 
-function expectiminimaxBE(board, burningIndex, isMaximizing, aiSymbol, oppSymbol) {
-  const score = evaluateBoardScore(board, burningIndex, aiSymbol, oppSymbol);
+function expectiminimaxBE(board, depth, burningIndices, movesX, movesO, isMaximizing, aiSymbol, oppSymbol, isInfinite) {
+  const score = evaluateBoardScore(board, burningIndices, aiSymbol, oppSymbol);
   if (score !== null) return score;
+
+  if (isInfinite && depth >= 4) {
+    return evaluateHeuristic(board, burningIndices, aiSymbol, oppSymbol);
+  }
 
   if (isMaximizing) {
     let best = -Infinity;
-    for (const i of getValidMoves(board, burningIndex)) {
-      const outcomes = simulateMove(board, burningIndex, aiSymbol, i, true);
+    for (const i of getValidMoves(board, burningIndices)) {
+      const outcomes = simulateMove(board, burningIndices, aiSymbol, i, true, movesX, movesO, isInfinite);
       let avg = 0;
       for (const outcome of outcomes) {
         avg += expectiminimaxBE(
           outcome.board,
-          outcome.burningIndex,
+          depth + 1,
+          outcome.burningIndices,
+          outcome.movesX,
+          outcome.movesO,
           false,
           aiSymbol,
           oppSymbol,
+          isInfinite,
         );
       }
       avg /= outcomes.length;
@@ -767,16 +920,20 @@ function expectiminimaxBE(board, burningIndex, isMaximizing, aiSymbol, oppSymbol
   }
 
   let best = Infinity;
-  for (const i of getValidMoves(board, burningIndex)) {
-    const outcomes = simulateMove(board, burningIndex, oppSymbol, i, true);
+  for (const i of getValidMoves(board, burningIndices)) {
+    const outcomes = simulateMove(board, burningIndices, oppSymbol, i, true, movesX, movesO, isInfinite);
     let avg = 0;
     for (const outcome of outcomes) {
       avg += expectiminimaxBE(
         outcome.board,
-        outcome.burningIndex,
+        depth + 1,
+        outcome.burningIndices,
+        outcome.movesX,
+        outcome.movesO,
         true,
         aiSymbol,
         oppSymbol,
+        isInfinite,
       );
     }
     avg /= outcomes.length;
@@ -785,20 +942,24 @@ function expectiminimaxBE(board, burningIndex, isMaximizing, aiSymbol, oppSymbol
   return best;
 }
 
-function getBestMinimaxMoveBE(board, burningIndex, aiSymbol, oppSymbol) {
+function getBestMinimaxMoveBE(board, burningIndices, movesX, movesO, aiSymbol, oppSymbol, isInfinite) {
   let bestScore = -Infinity;
   let bestMove = null;
 
-  for (const i of getValidMoves(board, burningIndex)) {
-    const outcomes = simulateMove(board, burningIndex, aiSymbol, i, true);
+  for (const i of getValidMoves(board, burningIndices)) {
+    const outcomes = simulateMove(board, burningIndices, aiSymbol, i, true, movesX, movesO, isInfinite);
     let avg = 0;
     for (const outcome of outcomes) {
       avg += expectiminimaxBE(
         outcome.board,
-        outcome.burningIndex,
+        1,
+        outcome.burningIndices,
+        outcome.movesX,
+        outcome.movesO,
         false,
         aiSymbol,
         oppSymbol,
+        isInfinite,
       );
     }
     avg /= outcomes.length;
@@ -815,9 +976,10 @@ function pickRandomMove(moves) {
   return moves[Math.floor(Math.random() * moves.length)];
 }
 
-function getComputerMove(board, difficulty, symbol, burningIndex, isBurningEarth) {
+function getComputerMove(board, difficulty, symbol, burningIndices, isBurningEarth) {
   const opponent = symbol === "X" ? "O" : "X";
-  const moves = getValidMoves(board, burningIndex, {
+  const isInfinite = isInfiniteMode();
+  const moves = getValidMoves(board, burningIndices, {
     excludeBurning: isBurningEarth && difficulty === "easy",
   });
 
@@ -829,24 +991,25 @@ function getComputerMove(board, difficulty, symbol, burningIndex, isBurningEarth
 
   if (difficulty === "medium") {
     if (Math.random() < 0.5) {
-      return pickRandomMove(getValidMoves(board, burningIndex));
+      return pickRandomMove(getValidMoves(board, burningIndices));
     }
-    const win = findWinningMove(board, burningIndex, symbol, isBurningEarth);
+    const win = findWinningMove(board, burningIndices, symbol, isBurningEarth, state.playerXMoves, state.playerOMoves, isInfinite);
     if (win !== null) return win;
-    const block = findBlockingMove(board, burningIndex, opponent, isBurningEarth);
+    const block = findBlockingMove(board, burningIndices, opponent, isBurningEarth, state.playerXMoves, state.playerOMoves, isInfinite);
     if (block !== null) return block;
-    return pickRandomMove(getValidMoves(board, burningIndex));
+    return pickRandomMove(getValidMoves(board, burningIndices));
   }
 
   if (isBurningEarth) {
     return (
-      getBestMinimaxMoveBE(board, burningIndex, symbol, opponent) ??
+      getBestMinimaxMoveBE(board, burningIndices, state.playerXMoves, state.playerOMoves, symbol, opponent, isInfinite) ??
       pickRandomMove(moves)
     );
   }
 
   return (
-    getBestMinimaxMoveClassic(board, symbol, opponent) ?? pickRandomMove(moves)
+    getBestMinimaxMoveClassic(board, state.playerXMoves, state.playerOMoves, symbol, opponent, isInfinite) ??
+    pickRandomMove(moves)
   );
 }
 
@@ -1090,14 +1253,24 @@ function executeMove(index) {
   state.board[index] = state.currentPlayer;
   const move = { player: state.currentPlayer, index };
 
+  if (isInfiniteMode()) {
+    const movesArr = state.currentPlayer === "X" ? state.playerXMoves : state.playerOMoves;
+    movesArr.push(index);
+    if (movesArr.length >= 4) {
+      const oldestIndex = movesArr.shift();
+      state.board[oldestIndex] = null;
+      move.removedIndex = oldestIndex;
+    }
+  }
+
   if (isBurningEarthMode()) {
-    moveBurningCell(index);
-    move.burningAfter = state.burningIndex;
+    moveBurningCells(index);
+    move.burningAfter = [...state.burningIndices];
   }
 
   state.moves.push(move);
 
-  const burning = isBurningEarthMode() ? state.burningIndex : null;
+  const burning = isBurningEarthMode() ? state.burningIndices : null;
   const result = checkWinner(state.board, burning);
   if (result) {
     void endGame(result);
@@ -1141,7 +1314,7 @@ async function scheduleComputerTurn() {
         state.board,
         getDifficulty(slot),
         state.currentPlayer,
-        state.burningIndex,
+        state.burningIndices,
         isBurningEarthMode(),
       );
 
@@ -1205,13 +1378,13 @@ function quitGame() {
 async function replayGame() {
   if (!state.lastGameMoves.length || state.gameActive) return;
 
-  const isBurning = state.lastGameMode === "burningEarth";
+  const isBurning = state.lastGameMode === "burningEarth" || state.lastGameMode === "burningEarth_infinite";
 
   state.replaying = true;
   state.gameActive = false;
   state.board = Array(9).fill(null);
   state.winningLine = null;
-  state.burningIndex = isBurning ? state.lastInitialBurning : null;
+  state.burningIndices = isBurning ? [...state.lastInitialBurnings] : [];
 
   setStatus("Replaying last game…");
   renderBoard();
@@ -1229,22 +1402,31 @@ async function replayGame() {
     await delay(350);
     cell.classList.remove("replay-highlight");
 
+    if (move.removedIndex !== undefined && move.removedIndex !== null) {
+      state.board[move.removedIndex] = null;
+      renderBoard();
+    }
+
     if (isBurning && move.burningAfter !== undefined) {
       await delay(300);
-      state.burningIndex = move.burningAfter;
+      state.burningIndices = [...move.burningAfter];
       renderBoard();
-      const burnCell = els.board.children[move.burningAfter];
-      if (burnCell) {
-        burnCell.classList.add("replay-highlight");
-        await delay(350);
-        burnCell.classList.remove("replay-highlight");
+      // Briefly highlight all newly burning cells
+      for (const burnIdx of state.burningIndices) {
+        const burnCell = els.board.children[burnIdx];
+        if (burnCell) burnCell.classList.add("replay-highlight");
+      }
+      await delay(350);
+      for (const burnIdx of state.burningIndices) {
+        const burnCell = els.board.children[burnIdx];
+        if (burnCell) burnCell.classList.remove("replay-highlight");
       }
     }
   }
 
   const result = checkWinner(
     state.board,
-    isBurning ? state.burningIndex : null,
+    isBurning ? state.burningIndices : null,
   );
   if (result?.winner) {
     state.winningLine = result.line;
@@ -1392,6 +1574,9 @@ els.playAgainBtn.addEventListener("click", playAgain);
 els.replayBtn.addEventListener("click", replayGame);
 els.quitBtn.addEventListener("click", quitGame);
 els.darkModeBtn.addEventListener("click", toggleTheme);
+els.toggleUsersBtn.addEventListener("click", openDrawer);
+els.closeUsersBtn.addEventListener("click", closeDrawer);
+els.drawerBackdrop.addEventListener("click", closeDrawer);
 
 els.tieBreakerToggle.addEventListener("change", () => {
   saveTieBreakerSetting();
@@ -1399,6 +1584,14 @@ els.tieBreakerToggle.addEventListener("change", () => {
 
 els.burningEarthToggle.addEventListener("change", () => {
   saveBurningEarthSetting();
+  resetMatchSeries();
+  renderUserList();
+  updateScoreBoard();
+  updateControls();
+});
+
+els.infiniteToggle.addEventListener("change", () => {
+  saveInfiniteSetting();
   resetMatchSeries();
   renderUserList();
   updateScoreBoard();
@@ -1429,6 +1622,7 @@ async function init() {
   loadTheme();
   loadTieBreakerSetting();
   loadBurningEarthSetting();
+  loadInfiniteSetting();
   initBoard();
   await loadUsers();
   renderUserList();

@@ -9,7 +9,12 @@
 <body>
   <div class="app">
     <header class="header">
-      <h1>Tic Tac Toe</h1>
+      <div class="header-left">
+        <button id="toggleUsersBtn" class="icon-btn mobile-only" title="Toggle users list" aria-label="Toggle users list">
+          <span class="icon-users">👥</span>
+        </button>
+        <h1>Tic Tac Toe</h1>
+      </div>
       <button id="darkModeBtn" class="icon-btn" title="Toggle dark mode" aria-label="Toggle dark mode">
         <span class="icon-sun">☀</span>
         <span class="icon-moon">☾</span>
@@ -17,8 +22,13 @@
     </header>
 
     <main class="layout">
-      <aside class="panel users-panel">
-        <h2>Users</h2>
+      <aside class="panel users-panel" id="usersPanel">
+        <div class="users-panel-header">
+          <h2>Users</h2>
+          <button id="closeUsersBtn" class="icon-btn close-users-btn mobile-only" title="Close users list" aria-label="Close users list">
+            <span>✕</span>
+          </button>
+        </div>
         <form id="addUserForm" class="add-user-form">
           <input type="text" id="userNameInput" placeholder="New user name" maxlength="24" required autocomplete="off">
           <button type="submit">Add</button>
@@ -59,6 +69,10 @@
             <input type="checkbox" id="burningEarthToggle">
             <span class="setting-toggle-label">Burning Earth mode 🔥</span>
           </label>
+          <label class="setting-toggle" for="infiniteToggle">
+            <input type="checkbox" id="infiniteToggle">
+            <span class="setting-toggle-label">Infinite Mode ♾️</span>
+          </label>
         </div>
 
         <div id="statusBar" class="status-bar">Select two players to start</div>
@@ -74,6 +88,8 @@
       </section>
     </main>
   </div>
+
+  <div id="drawerBackdrop" class="drawer-backdrop"></div>
 
   <div id="coinFlipOverlay" class="coin-flip-overlay" hidden>
     <div class="coin-flip-card" role="dialog" aria-labelledby="coinFlipTitle" aria-modal="true">
