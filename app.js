@@ -490,6 +490,11 @@ function renderPlayerSelects() {
     computerOpt.textContent = COMPUTER_LABEL;
     select.appendChild(computerOpt);
 
+    const addNewOpt = document.createElement("option");
+    addNewOpt.value = "ADD_NEW_USER_SHORTCUT";
+    addNewOpt.textContent = "➕ Add new user...";
+    select.appendChild(addNewOpt);
+
     if (current === COMPUTER || options.includes(current)) {
       select.value = current;
     }
@@ -1629,7 +1634,33 @@ els.userList.addEventListener("click", async (e) => {
   }
 });
 
-function onPlayerSelectChange() {
+function openUsersPanel() {
+  // On mobile the panel lives inside a drawer — open it if not already visible.
+  const isMobileDrawer = window.getComputedStyle(els.usersPanel).position === "fixed";
+  if (isMobileDrawer && !els.usersPanel.classList.contains("open")) {
+    openDrawer();
+  }
+  // Scroll the users panel into view smoothly.
+  els.usersPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  // Focus the name input — triggers the mobile soft keyboard.
+  // Use a short delay so the drawer animation completes first.
+  setTimeout(() => {
+    els.userNameInput.focus();
+  }, 300);
+}
+
+function onPlayerSelectChange(e) {
+  const select = e.target;
+  if (select.value === "ADD_NEW_USER_SHORTCUT") {
+    // Revert to the previous valid selection (or empty).
+    const { p1, p2 } = getSelectedPlayers();
+    const prevValue = select === els.player1Select ? p1 : p2;
+    // prevValue still holds the old value because we read it before updating state
+    select.value = (prevValue === "ADD_NEW_USER_SHORTCUT" ? "" : prevValue) || "";
+    openUsersPanel();
+    return;
+  }
+
   const { p1, p2 } = getSelectedPlayers();
   if (!playersMatchSession(p1, p2)) {
     resetMatchSeries();
