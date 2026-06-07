@@ -3,6 +3,7 @@ const STORAGE_KEYS = {
   tieBreaker: "ttt_tie_breaker",
   burningEarth: "ttt_burning_earth",
   infinite: "ttt_infinite",
+  users: "ttt_local_users",
 };
 
 const API = "/api";
@@ -44,6 +45,7 @@ const state = {
   computerThinking: false,
   playerXMoves: [],
   playerOMoves: [],
+  isOffline: false,
 };
 
 const els = {
@@ -99,23 +101,42 @@ async function apiRequest(url, options = {}) {
   return data;
 }
 
+function loadLocalUsers() {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEYS.users);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalUsers(users) {
+  try {
+    localStorage.setItem(STORAGE_KEYS.users, JSON.stringify(users));
+  } catch (err) {
+    console.error("Failed to save to localStorage", err);
+  }
+}
+
 async function loadUsers() {
   try {
     state.users = await apiRequest(`${API}/users`);
+    state.isOffline = false;
   } catch {
-    state.users = [];
-    showServerError();
+    state.isOffline = true;
+    state.users = loadLocalUsers();
   }
 }
 
 function showServerError() {
+  // Only hint when opened as a local file without a dev server.
+  // On hosted environments (GitHub Pages, etc.) the localStorage fallback
+  // handles all user operations silently — no error message needed.
   if (location.protocol === "file:") {
     setStatus(
       "Open http://localhost:8080 in your browser after running: node server.js",
     );
-    return;
   }
-  setStatus("Server is offline. In the project folder run: node server.js");
 }
 
 function loadTheme() {
@@ -226,6 +247,20 @@ async function addUser(name) {
   if (!trimmed) return { ok: false, reason: "empty" };
   if (findUser(trimmed)) return { ok: false, reason: "exists" };
 
+  if (state.isOffline) {
+    const newUser = {
+      name: trimmed,
+      classic: { wins: 0, losses: 0, draws: 0 },
+      burningEarth: { wins: 0, losses: 0, draws: 0 },
+      infinite: { wins: 0, losses: 0, draws: 0 },
+      burningEarth_infinite: { wins: 0, losses: 0, draws: 0 },
+    };
+    state.users.push(newUser);
+    state.users.sort((a, b) => a.name.localeCompare(b.name));
+    saveLocalUsers(state.users);
+    return { ok: true };
+  }
+
   try {
     const user = await apiRequest(`${API}/users`, {
       method: "POST",
@@ -235,15 +270,38 @@ async function addUser(name) {
     state.users.sort((a, b) => a.name.localeCompare(b.name));
     return { ok: true };
   } catch (err) {
-    return { ok: false, reason: "server", message: err.message };
+    state.isOffline = true;
+    const newUser = {
+      name: trimmed,
+      classic: { wins: 0, losses: 0, draws: 0 },
+      burningEarth: { wins: 0, losses: 0, draws: 0 },
+      infinite: { wins: 0, losses: 0, draws: 0 },
+      burningEarth_infinite: { wins: 0, losses: 0, draws: 0 },
+    };
+    state.users.push(newUser);
+    state.users.sort((a, b) => a.name.localeCompare(b.name));
+    saveLocalUsers(state.users);
+    return { ok: true };
   }
 }
 
 async function removeUser(name) {
-  await apiRequest(`${API}/users/${encodeURIComponent(name)}`, {
-    method: "DELETE",
-  });
-  state.users = state.users.filter((u) => u.name !== name);
+  if (state.isOffline) {
+    state.users = state.users.filter((u) => u.name !== name);
+    saveLocalUsers(state.users);
+    return;
+  }
+
+  try {
+    await apiRequest(`${API}/users/${encodeURIComponent(name)}`, {
+      method: "DELETE",
+    });
+    state.users = state.users.filter((u) => u.name !== name);
+  } catch (err) {
+    state.isOffline = true;
+    state.users = state.users.filter((u) => u.name !== name);
+    saveLocalUsers(state.users);
+  }
 }
 
 function getSelectedPlayers() {
@@ -1013,12 +1071,45 @@ function getComputerMove(board, difficulty, symbol, burningIndices, isBurningEar
   );
 }
 
+function applyLocalScore(p1, p2, winnerSymbol) {
+  const mode = getActiveMode();
+  const user1 = state.users.find((u) => u.name === p1);
+  const user2 = state.users.find((u) => u.name === p2);
+  if (!user1 || !user2) return;
+
+  // Ensure mode stats exist (handles old local data missing new modes)
+  for (const u of [user1, user2]) {
+    if (!u[mode]) u[mode] = { wins: 0, losses: 0, draws: 0 };
+  }
+
+  if (winnerSymbol === "X") {
+    user1[mode].wins += 1;
+    user2[mode].losses += 1;
+  } else if (winnerSymbol === "O") {
+    user2[mode].wins += 1;
+    user1[mode].losses += 1;
+  } else {
+    user1[mode].draws += 1;
+    user2[mode].draws += 1;
+  }
+
+  saveLocalUsers(state.users);
+}
+
 async function applyScore(winnerSymbol) {
   const { p1, p2 } = getSelectedPlayers();
   if (!p1 || !p2) return;
 
   if (hasComputerInGame()) {
     recordSessionResult(winnerSymbol);
+    updateScoreBoard();
+    return;
+  }
+
+  if (state.isOffline) {
+    applyLocalScore(p1, p2, winnerSymbol);
+    recordSessionResult(winnerSymbol);
+    renderUserList();
     updateScoreBoard();
     return;
   }
@@ -1037,7 +1128,11 @@ async function applyScore(winnerSymbol) {
     renderUserList();
     updateScoreBoard();
   } catch {
-    setStatus("Could not save game result to the database");
+    state.isOffline = true;
+    applyLocalScore(p1, p2, winnerSymbol);
+    recordSessionResult(winnerSymbol);
+    renderUserList();
+    updateScoreBoard();
   }
 }
 
@@ -1509,8 +1604,9 @@ els.userList.addEventListener("click", async (e) => {
   if (!btn || btn.disabled) return;
 
   const name = btn.dataset.name;
+  const storage = state.isOffline ? "local data" : "database";
   const confirmed = window.confirm(
-    `Remove "${name}"?\n\nAll stats for this player will be permanently deleted from the database.`,
+    `Remove "${name}"?\n\nAll stats for this player will be permanently deleted from the ${storage}.`,
   );
   if (!confirmed) return;
 
@@ -1527,9 +1623,9 @@ els.userList.addEventListener("click", async (e) => {
     resetMatchSeries();
     updateScoreBoard();
     updateControls();
-    setStatus(`Removed ${name} from the database`);
+    setStatus(`Removed ${name}`);
   } catch {
-    setStatus("Could not remove user from the database");
+    setStatus("Could not remove user");
   }
 });
 
@@ -1600,6 +1696,7 @@ els.infiniteToggle.addEventListener("change", () => {
 
 function startHeartbeat() {
   setInterval(() => {
+    if (state.isOffline) return;
     fetch(`${API}/heartbeat`, { method: "POST" }).catch(() => {});
   }, 2000);
 }
@@ -1629,7 +1726,7 @@ async function init() {
   renderPlayerSelects();
   updateControls();
   setStatus("Add at least 2 users, select them, then click Start Game");
-  startHeartbeat();
+  if (!state.isOffline) startHeartbeat();
 }
 
 init();
