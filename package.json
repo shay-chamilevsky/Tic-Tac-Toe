@@ -1,0 +1,9 @@
+{
+  "name": "tic-tak-to",
+  "version": "1.0.0",
+  "description": "Two-player Tic Tac Toe with persistent user stats",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  }
+}

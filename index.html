@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tic Tac Toe</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <h1>Tic Tac Toe</h1>
+      <button id="darkModeBtn" class="icon-btn" title="Toggle dark mode" aria-label="Toggle dark mode">
+        <span class="icon-sun">☀</span>
+        <span class="icon-moon">☾</span>
+      </button>
+    </header>
+
+    <main class="layout">
+      <aside class="panel users-panel">
+        <h2>Users</h2>
+        <form id="addUserForm" class="add-user-form">
+          <input type="text" id="userNameInput" placeholder="New user name" maxlength="24" required autocomplete="off">
+          <button type="submit">Add</button>
+        </form>
+        <ul id="userList" class="user-list"></ul>
+      </aside>
+
+      <section class="panel game-panel">
+        <div class="player-select">
+          <div class="select-group">
+            <label for="player1Select">Player 1 (X)</label>
+            <select id="player1Select"></select>
+            <select id="player1Difficulty" class="difficulty-select" hidden>
+              <option value="easy">Easy</option>
+              <option value="medium" selected>Medium</option>
+              <option value="hard">Hard</option>
+            </select>
+          </div>
+          <div class="select-group">
+            <label for="player2Select">Player 2 (O)</label>
+            <select id="player2Select"></select>
+            <select id="player2Difficulty" class="difficulty-select" hidden>
+              <option value="easy">Easy</option>
+              <option value="medium" selected>Medium</option>
+              <option value="hard">Hard</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="scoreBoard" class="score-board"></div>
+
+        <div class="settings-toggles">
+          <label class="setting-toggle" for="tieBreakerToggle">
+            <input type="checkbox" id="tieBreakerToggle" checked>
+            <span class="setting-toggle-label">Coin flip tiebreaker</span>
+          </label>
+          <label class="setting-toggle" for="burningEarthToggle">
+            <input type="checkbox" id="burningEarthToggle">
+            <span class="setting-toggle-label">Burning Earth mode 🔥</span>
+          </label>
+        </div>
+
+        <div id="statusBar" class="status-bar">Select two players to start</div>
+
+        <div id="board" class="board" aria-label="Tic tac toe board"></div>
+
+        <div class="game-controls">
+          <button id="startBtn" class="btn primary">Start Game</button>
+          <button id="playAgainBtn" class="btn" disabled>Play Again</button>
+          <button id="replayBtn" class="btn" disabled>Replay</button>
+          <button id="quitBtn" class="btn danger" disabled>Quit Game</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="coinFlipOverlay" class="coin-flip-overlay" hidden>
+    <div class="coin-flip-card" role="dialog" aria-labelledby="coinFlipTitle" aria-modal="true">
+      <h3 id="coinFlipTitle">Tie — coin flip!</h3>
+      <p class="coin-flip-hint">One player picks heads or tails — the other is assigned the opposite side.</p>
+      <div class="coin-flip-layout">
+        <div class="coin-player-pick" data-player="1">
+          <div class="coin-player-name" id="coinP1Name">Player 1</div>
+          <div class="coin-side-btns">
+            <button type="button" class="coin-side-btn" data-side="heads">Heads</button>
+            <button type="button" class="coin-side-btn" data-side="tails">Tails</button>
+          </div>
+          <div class="coin-pick-status" id="coinP1Status">Choose a side</div>
+        </div>
+        <div class="coin-stage">
+          <div id="coin" class="coin" aria-hidden="true">
+            <div class="coin-face coin-heads">H</div>
+            <div class="coin-face coin-tails">T</div>
+          </div>
+          <p id="coinFlipMessage" class="coin-flip-message"></p>
+        </div>
+        <div class="coin-player-pick" data-player="2">
+          <div class="coin-player-name" id="coinP2Name">Player 2</div>
+          <div class="coin-side-btns">
+            <button type="button" class="coin-side-btn" data-side="heads">Heads</button>
+            <button type="button" class="coin-side-btn" data-side="tails">Tails</button>
+          </div>
+          <div class="coin-pick-status" id="coinP2Status">Choose a side</div>
+        </div>
+      </div>
+      <button type="button" id="coinFlipBtn" class="btn primary coin-flip-action" disabled>Flip coin</button>
+    </div>
+  </div>
+
+  <noscript>
+    <p style="padding:1rem;text-align:center;font-family:sans-serif;">
+      JavaScript is required to run this game. Please enable JavaScript in your browser.
+    </p>
+  </noscript>
+  <script src="app.js"></script>
+</body>
+</html>
