@@ -46,6 +46,7 @@ const state = {
   playerXMoves: [],
   playerOMoves: [],
   isOffline: false,
+  pendingSelect: null,
 };
 
 const els = {
@@ -446,6 +447,7 @@ function setTurnGameStatus() {
     `${coloredNameForSymbol(state.currentPlayer)}'s turn (${state.currentPlayer})`,
     true,
   );
+  updateScoreBoard();
 }
 
 function renderUserList() {
@@ -457,14 +459,30 @@ function renderUserList() {
     return;
   }
 
-  state.users.forEach((user) => {
+  const sortedUsers = [...state.users].sort((a, b) => {
+    const statsA = getUserStats(a);
+    const statsB = getUserStats(b);
+    if (statsB.wins !== statsA.wins) {
+      return statsB.wins - statsA.wins;
+    }
+    if (statsA.losses !== statsB.losses) {
+      return statsA.losses - statsB.losses;
+    }
+    return a.name.localeCompare(b.name);
+  });
+
+  sortedUsers.forEach((user, index) => {
     const stats = getUserStats(user);
     const li = document.createElement("li");
     li.className = "user-item";
+    const rank = index + 1;
     li.innerHTML = `
-      <div>
-        <div>${escapeHtml(user.name)}</div>
-        <div class="stats">W ${stats.wins} · L ${stats.losses} · D ${stats.draws}</div>
+      <div class="user-info-wrapper">
+        <span class="rank-badge rank-${rank}">#${rank}</span>
+        <div>
+          <div class="username">${escapeHtml(user.name)}</div>
+          <div class="stats">W ${stats.wins} · L ${stats.losses} · D ${stats.draws}</div>
+        </div>
       </div>
       <button class="remove-btn" data-name="${escapeAttr(user.name)}" ${state.gameActive ? "disabled" : ""}>Remove</button>
     `;
@@ -523,6 +541,9 @@ function updateScoreBoard() {
     return;
   }
 
+  const p1Active = state.gameActive && state.currentPlayer === "X" ? " active-turn active-x" : "";
+  const p2Active = state.gameActive && state.currentPlayer === "O" ? " active-turn active-o" : "";
+
   const modeClass = isBurningEarthMode() ? "score-mode burning" : "score-mode";
   const matchLabel =
     state.matchNumber > 1
@@ -530,7 +551,7 @@ function updateScoreBoard() {
       : "";
 
   els.scoreBoard.innerHTML = `
-    <div class="score-player">
+    <div class="score-player${p1Active}">
       <div class="name" style="color: var(--x-color)">${escapeHtml(displayName(p1))} (X)</div>
       <div class="record">${formatSessionRecord("p1")}</div>
     </div>
@@ -538,7 +559,7 @@ function updateScoreBoard() {
       <div class="${modeClass}">${getModeLabel()}</div>
       ${matchLabel || "vs"}
     </div>
-    <div class="score-player">
+    <div class="score-player${p2Active}">
       <div class="name" style="color: var(--o-color)">${escapeHtml(displayName(p2))} (O)</div>
       <div class="record">${formatSessionRecord("p2")}</div>
     </div>
@@ -546,6 +567,20 @@ function updateScoreBoard() {
 }
 
 function renderBoard() {
+  const boardEl = els.board;
+  if (state.gameActive && !state.replaying) {
+    boardEl.classList.add("active-board-glow");
+    if (state.currentPlayer === "X") {
+      boardEl.classList.add("glow-x");
+      boardEl.classList.remove("glow-o");
+    } else {
+      boardEl.classList.add("glow-o");
+      boardEl.classList.remove("glow-x");
+    }
+  } else {
+    boardEl.classList.remove("active-board-glow", "glow-x", "glow-o");
+  }
+
   els.board.innerHTML = "";
   state.board.forEach((cell, index) => {
     const btn = document.createElement("button");
@@ -576,6 +611,7 @@ function renderBoard() {
 
     if (state.winningLine && state.winningLine.includes(index)) {
       btn.classList.add("winning");
+      btn.classList.add("win-pulse");
     }
 
     els.board.appendChild(btn);
@@ -622,7 +658,9 @@ function resetBoard(keepPlayers = true) {
     state.lastGameMoves = [];
   }
 
+  els.statusBar.classList.remove("win-declared");
   renderBoard();
+  updateScoreBoard();
   updateControls();
 }
 
@@ -954,7 +992,7 @@ function expectiminimaxBE(board, depth, burningIndices, movesX, movesO, isMaximi
   const score = evaluateBoardScore(board, burningIndices, aiSymbol, oppSymbol);
   if (score !== null) return score;
 
-  if (isInfinite && depth >= 4) {
+  if (depth >= 3) {
     return evaluateHeuristic(board, burningIndices, aiSymbol, oppSymbol);
   }
 
@@ -1303,6 +1341,7 @@ async function runCoinFlip(replayData = null) {
   els.coinFlipMessage.innerHTML = resultText;
   els.coinFlipMessage.classList.add("result");
   setGameStatus(`${coloredPlayerName(winnerName)} wins the coin flip!`, true);
+  els.statusBar.classList.add("win-declared");
 
   state.lastCoinFlip = { p1Pick: pick1, p2Pick: pick2, outcome, winnerSymbol };
 
@@ -1331,6 +1370,7 @@ async function endGame(result) {
     state.lastCoinFlip = null;
     const winnerName = result.winner === "X" ? p1 : p2;
     setGameStatus(`${coloredPlayerName(winnerName)} wins!`, true);
+    els.statusBar.classList.add("win-declared");
     await applyScore(result.winner);
   } else if (isTieBreakerEnabled()) {
     state.lastCoinFlip = null;
@@ -1594,6 +1634,14 @@ els.addUserForm.addEventListener("submit", async (e) => {
     els.userNameInput.value = "";
     renderUserList();
     renderPlayerSelects();
+    if (state.pendingSelect) {
+      const selectEl = document.getElementById(state.pendingSelect);
+      if (selectEl) {
+        selectEl.value = name.trim();
+        onPlayerSelectChange({ target: selectEl });
+      }
+      state.pendingSelect = null;
+    }
     setStatus(`Added ${name.trim()}`);
   } else if (result.reason === "empty") {
     setStatus("Please enter a user name");
@@ -1652,6 +1700,7 @@ function openUsersPanel() {
 function onPlayerSelectChange(e) {
   const select = e.target;
   if (select.value === "ADD_NEW_USER_SHORTCUT") {
+    state.pendingSelect = select.id;
     // Revert to the previous valid selection (or empty).
     const { p1, p2 } = getSelectedPlayers();
     const prevValue = select === els.player1Select ? p1 : p2;
@@ -1659,6 +1708,10 @@ function onPlayerSelectChange(e) {
     select.value = (prevValue === "ADD_NEW_USER_SHORTCUT" ? "" : prevValue) || "";
     openUsersPanel();
     return;
+  } else {
+    if (state.pendingSelect === select.id) {
+      state.pendingSelect = null;
+    }
   }
 
   const { p1, p2 } = getSelectedPlayers();
@@ -1756,6 +1809,15 @@ async function init() {
   renderUserList();
   renderPlayerSelects();
   updateControls();
+  
+  // Prevent tooltip clicks from toggling the setting checkbox
+  document.querySelectorAll(".info-tooltip-container").forEach((container) => {
+    container.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+    });
+  });
+
   setStatus("Add at least 2 users, select them, then click Start Game");
   if (!state.isOffline) startHeartbeat();
 }
