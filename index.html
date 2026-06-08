@@ -15,10 +15,15 @@
         </button>
         <h1>Tic Tac Toe</h1>
       </div>
-      <button id="darkModeBtn" class="icon-btn" title="Toggle dark mode" aria-label="Toggle dark mode">
-        <span class="icon-sun">☀</span>
-        <span class="icon-moon">☾</span>
-      </button>
+      <div class="header-actions">
+        <button id="rulesBtn" class="icon-btn" title="View game rules" aria-label="View game rules">
+          <span>ⓘ</span>
+        </button>
+        <button id="darkModeBtn" class="icon-btn" title="Toggle dark mode" aria-label="Toggle dark mode">
+          <span class="icon-sun">☀</span>
+          <span class="icon-moon">☾</span>
+        </button>
+      </div>
     </header>
 
     <main class="layout">
@@ -67,23 +72,11 @@
           </label>
           <label class="setting-toggle" for="burningEarthToggle">
             <input type="checkbox" id="burningEarthToggle">
-            <span class="setting-toggle-label">
-              Burning Earth mode 🔥
-              <span class="info-tooltip-container">
-                <span class="info-icon" aria-label="Burning Earth Rules">ⓘ</span>
-                <span class="tooltip-text">Every turn, 3 random cells catch fire and become blocked. If a player's token is caught under the fire, it is temporarily frozen and cannot complete a winning line until the fire moves away on the next turn.</span>
-              </span>
-            </span>
+            <span class="setting-toggle-label">Burning Earth mode 🔥</span>
           </label>
           <label class="setting-toggle" for="infiniteToggle">
             <input type="checkbox" id="infiniteToggle">
-            <span class="setting-toggle-label">
-              Infinite Mode ♾️
-              <span class="info-tooltip-container">
-                <span class="info-icon" aria-label="Infinite Mode Rules">ⓘ</span>
-                <span class="tooltip-text">A pure memory game! You can only have 3 active tokens on the board. Placing a 4th instantly and silently erases your oldest token.</span>
-              </span>
-            </span>
+            <span class="setting-toggle-label">Infinite Mode ♾️</span>
           </label>
         </div>
 
@@ -133,6 +126,22 @@
         </div>
       </div>
       <button type="button" id="coinFlipBtn" class="btn primary coin-flip-action" disabled>Flip coin</button>
+    </div>
+  </div>
+
+  <div id="rulesModal" class="rules-modal" hidden>
+    <div class="rules-modal-overlay"></div>
+    <div class="rules-modal-content" role="dialog" aria-labelledby="rulesModalTitle" aria-modal="true">
+      <button id="closeRulesBtn" class="close-rules-btn" aria-label="Close rules">✕</button>
+      <h3 id="rulesModalTitle">Game Modes & Rules</h3>
+      <div class="rules-section">
+        <h4>Burning Earth Mode 🔥</h4>
+        <p>Every turn, 3 random cells catch fire and become blocked. If a player's token is caught under the fire, it is temporarily frozen and cannot complete a winning line until the fire moves away on the next turn.</p>
+      </div>
+      <div class="rules-section">
+        <h4>Infinite Mode ♾️</h4>
+        <p>A pure memory game! You can only have 3 active tokens on the board. Placing a 4th instantly and silently erases your oldest token.</p>
+      </div>
     </div>
   </div>
 

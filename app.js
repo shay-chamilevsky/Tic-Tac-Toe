@@ -47,6 +47,8 @@ const state = {
   playerOMoves: [],
   isOffline: false,
   pendingSelect: null,
+  player1: "",
+  player2: "",
 };
 
 const els = {
@@ -80,6 +82,9 @@ const els = {
   closeUsersBtn: document.getElementById("closeUsersBtn"),
   usersPanel: document.getElementById("usersPanel"),
   drawerBackdrop: document.getElementById("drawerBackdrop"),
+  rulesBtn: document.getElementById("rulesBtn"),
+  rulesModal: document.getElementById("rulesModal"),
+  closeRulesBtn: document.getElementById("closeRulesBtn"),
 };
 
 async function apiRequest(url, options = {}) {
@@ -307,8 +312,8 @@ async function removeUser(name) {
 
 function getSelectedPlayers() {
   return {
-    p1: els.player1Select.value,
-    p2: els.player2Select.value,
+    p1: state.player1 || els.player1Select.value,
+    p2: state.player2 || els.player2Select.value,
   };
 }
 
@@ -451,15 +456,7 @@ function setTurnGameStatus() {
 }
 
 function renderUserList() {
-  els.userList.innerHTML = "";
-
-  if (state.users.length === 0) {
-    els.userList.innerHTML =
-      '<li class="empty-users">No users yet. Add one above.</li>';
-    return;
-  }
-
-  const sortedUsers = [...state.users].sort((a, b) => {
+  state.users.sort((a, b) => {
     const statsA = getUserStats(a);
     const statsB = getUserStats(b);
     if (statsB.wins !== statsA.wins) {
@@ -471,7 +468,15 @@ function renderUserList() {
     return a.name.localeCompare(b.name);
   });
 
-  sortedUsers.forEach((user, index) => {
+  els.userList.innerHTML = "";
+
+  if (state.users.length === 0) {
+    els.userList.innerHTML =
+      '<li class="empty-users">No users yet. Add one above.</li>';
+    return;
+  }
+
+  state.users.forEach((user, index) => {
     const stats = getUserStats(user);
     const li = document.createElement("li");
     li.className = "user-item";
@@ -1632,6 +1637,13 @@ els.addUserForm.addEventListener("submit", async (e) => {
 
   if (result.ok) {
     els.userNameInput.value = "";
+    if (state.pendingSelect) {
+      if (state.pendingSelect === "player1Select") {
+        state.player1 = name.trim();
+      } else if (state.pendingSelect === "player2Select") {
+        state.player2 = name.trim();
+      }
+    }
     renderUserList();
     renderPlayerSelects();
     if (state.pendingSelect) {
@@ -1658,9 +1670,7 @@ els.userList.addEventListener("click", async (e) => {
 
   const name = btn.dataset.name;
   const storage = state.isOffline ? "local data" : "database";
-  const confirmed = window.confirm(
-    `Remove "${name}"?\n\nAll stats for this player will be permanently deleted from the ${storage}.`,
-  );
+  const confirmed = true;
   if (!confirmed) return;
 
   const { p1, p2 } = getSelectedPlayers();
@@ -1670,8 +1680,14 @@ els.userList.addEventListener("click", async (e) => {
     renderUserList();
     renderPlayerSelects();
 
-    if (p1 === name) els.player1Select.value = "";
-    if (p2 === name) els.player2Select.value = "";
+    if (p1 === name) {
+      els.player1Select.value = "";
+      state.player1 = "";
+    }
+    if (p2 === name) {
+      els.player2Select.value = "";
+      state.player2 = "";
+    }
 
     resetMatchSeries();
     updateScoreBoard();
@@ -1713,6 +1729,9 @@ function onPlayerSelectChange(e) {
       state.pendingSelect = null;
     }
   }
+
+  state.player1 = els.player1Select.value;
+  state.player2 = els.player2Select.value;
 
   const { p1, p2 } = getSelectedPlayers();
   if (!playersMatchSession(p1, p2)) {
@@ -1808,14 +1827,21 @@ async function init() {
   await loadUsers();
   renderUserList();
   renderPlayerSelects();
+  state.player1 = els.player1Select.value;
+  state.player2 = els.player2Select.value;
   updateControls();
   
-  // Prevent tooltip clicks from toggling the setting checkbox
-  document.querySelectorAll(".info-tooltip-container").forEach((container) => {
-    container.addEventListener("click", (e) => {
-      e.stopPropagation();
-      e.preventDefault();
-    });
+  // Rules modal handlers
+  els.rulesBtn.addEventListener("click", () => {
+    els.rulesModal.hidden = false;
+  });
+
+  els.closeRulesBtn.addEventListener("click", () => {
+    els.rulesModal.hidden = true;
+  });
+
+  els.rulesModal.querySelector(".rules-modal-overlay").addEventListener("click", () => {
+    els.rulesModal.hidden = true;
   });
 
   setStatus("Add at least 2 users, select them, then click Start Game");
