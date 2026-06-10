@@ -558,27 +558,27 @@ body {
 }
 
 .board.active-board-glow.glow-x {
-  border-color: rgba(122, 154, 128, 0.2);
-  --glow-shadow-1: 0 4px 6px -1px rgba(122, 154, 128, 0.1), 0 10px 25px -5px rgba(122, 154, 128, 0.15);
-  --glow-shadow-2: 0 4px 12px rgba(122, 154, 128, 0.15), 0 12px 30px rgba(122, 154, 128, 0.2);
+  border-color: rgba(122, 154, 128, 0.65);
+  --glow-shadow-1: 0 4px 10px -1px rgba(122, 154, 128, 0.35), 0 10px 30px -5px rgba(122, 154, 128, 0.4);
+  --glow-shadow-2: 0 4px 18px rgba(122, 154, 128, 0.5), 0 12px 40px rgba(122, 154, 128, 0.65);
 }
 
 .board.active-board-glow.glow-o {
-  border-color: rgba(108, 142, 164, 0.2);
-  --glow-shadow-1: 0 4px 6px -1px rgba(108, 142, 164, 0.1), 0 10px 25px -5px rgba(108, 142, 164, 0.15);
-  --glow-shadow-2: 0 4px 12px rgba(108, 142, 164, 0.15), 0 12px 30px rgba(108, 142, 164, 0.2);
+  border-color: rgba(108, 142, 164, 0.65);
+  --glow-shadow-1: 0 4px 10px -1px rgba(108, 142, 164, 0.35), 0 10px 30px -5px rgba(108, 142, 164, 0.4);
+  --glow-shadow-2: 0 4px 18px rgba(108, 142, 164, 0.5), 0 12px 40px rgba(108, 142, 164, 0.65);
 }
 
 [data-theme="dark"] .board.active-board-glow.glow-x {
-  border-color: rgba(162, 188, 166, 0.25);
-  --glow-shadow-1: 0 4px 6px -1px rgba(162, 188, 166, 0.1), 0 10px 25px -5px rgba(162, 188, 166, 0.15);
-  --glow-shadow-2: 0 4px 12px rgba(162, 188, 166, 0.15), 0 12px 30px rgba(162, 188, 166, 0.2);
+  border-color: rgba(162, 188, 166, 0.75);
+  --glow-shadow-1: 0 4px 10px -1px rgba(162, 188, 166, 0.4), 0 10px 30px -5px rgba(162, 188, 166, 0.45);
+  --glow-shadow-2: 0 4px 18px rgba(162, 188, 166, 0.55), 0 12px 40px rgba(162, 188, 166, 0.7);
 }
 
 [data-theme="dark"] .board.active-board-glow.glow-o {
-  border-color: rgba(156, 188, 212, 0.25);
-  --glow-shadow-1: 0 4px 6px -1px rgba(156, 188, 212, 0.1), 0 10px 25px -5px rgba(156, 188, 212, 0.15);
-  --glow-shadow-2: 0 4px 12px rgba(156, 188, 212, 0.15), 0 12px 30px rgba(156, 188, 212, 0.2);
+  border-color: rgba(156, 188, 212, 0.75);
+  --glow-shadow-1: 0 4px 10px -1px rgba(156, 188, 212, 0.4), 0 10px 30px -5px rgba(156, 188, 212, 0.45);
+  --glow-shadow-2: 0 4px 18px rgba(156, 188, 212, 0.55), 0 12px 40px rgba(156, 188, 212, 0.7);
 }
 
 @keyframes activeBoardGlowPulse {
